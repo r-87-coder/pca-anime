@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PCA, step by step</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1320;--panel:#151e30;--line:#26334d;--text:#e8edf6;--mute:#93a2bb;--a:#f6b74a;--b:#4fd1e0;--grid:#1d2940;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f2f5fa;--panel:#fff;--line:#d3dbe8;--text:#16202f;--mute:#566379;--a:#c77700;--b:#0a8ea0;--grid:#e3e9f2}}
+:root[data-theme="dark"]{--bg:#0d1320;--panel:#151e30;--line:#26334d;--text:#e8edf6;--mute:#93a2bb;--a:#f6b74a;--b:#4fd1e0;--grid:#1d2940}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding:18px 16px 28px}
+h1{font-size:clamp(22px,4vw,32px);margin:0 0 2px;font-weight:800;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 14px;font-size:15px}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px}
+@media (max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.stage{padding:6px}
+svg{display:block;width:100%;height:auto}
+.ax{stroke:var(--line);stroke-width:1.2}.gl{stroke:var(--grid);stroke-width:1}
+.lab{fill:var(--mute);font-size:12px;font-family:inherit}
+.pt{cursor:pointer;stroke:var(--bg);stroke-width:1.5}
+.pt:focus-visible,.pt.sel{stroke:var(--text);stroke-width:2.5;outline:none}
+.pcl{cursor:pointer}
+.side{display:flex;flex-direction:column;gap:12px}
+.cap{padding:16px 18px;min-height:190px}
+.cap h2{margin:0 0 6px;font-size:21px;letter-spacing:-.01em}
+.cap p{margin:0 0 8px;font-size:15.5px;max-width:60ch}
+.cap .d{color:var(--mute);font-size:14px}
+.ins{padding:12px 16px;font-size:14px;color:var(--mute)}
+.ins b{color:var(--text)}
+.bars{padding:12px 16px}
+.bar{display:flex;align-items:center;gap:10px;font-size:13px;margin:4px 0}
+.bar span:first-child{width:34px;font-weight:600}
+.track{flex:1;height:10px;background:var(--grid);border-radius:6px;overflow:hidden}
+.fill{height:100%;width:0;border-radius:6px}
+.ctl{margin-top:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:7px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:38px}
+button:hover{border-color:var(--mute)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+button.on{background:var(--a);color:#101826;border-color:var(--a);font-weight:600}
+button svg{width:16px;height:16px;fill:currentColor}
+.sp{margin-left:auto;display:flex;gap:4px}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--a);height:24px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:13px;padding:4px 10px;min-height:32px}
+.time{font-size:13px;color:var(--mute);min-width:64px;text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Principal component analysis, step by step</h1>
+<p class="sub">A real-world example: height and weight for 120 adults. Pause anywhere and click a dot or an arrow to inspect it.</p>
+<div class="grid">
+<div class="card stage">
+<svg id="svg" viewBox="0 0 600 420" role="img" aria-label="Animated scatter plot showing the steps of principal component analysis">
+<g id="grid"></g>
+<line class="ax" x1="20" y1="210" x2="580" y2="210"/><line class="ax" x1="300" y1="14" x2="300" y2="406"/>
+<text class="lab" x="582" y="228" text-anchor="end" id="xl">height (cm)</text>
+<text class="lab" x="308" y="26" id="yl">weight (kg)</text>
+<g id="G">
+<ellipse id="el" fill="var(--a)" fill-opacity=".10" stroke="var(--a)" stroke-opacity=".6" stroke-dasharray="4 4"/>
+<line id="ax1" stroke="var(--a)" stroke-opacity=".35" stroke-dasharray="6 5"/>
+<g id="res"></g><g id="pts"></g>
+<line id="v2" class="pcl" stroke="var(--b)" stroke-width="4" stroke-linecap="round"/>
+<line id="v1" class="pcl" stroke="var(--a)" stroke-width="4" stroke-linecap="round"/>
+<circle id="mu" r="4" fill="var(--text)"/>
+</g>
+<text id="l1" class="lab" fill="var(--a)" style="fill:var(--a);font-weight:600" text-anchor="middle">PC1</text>
+<text id="l2" class="lab" style="fill:var(--b);font-weight:600" text-anchor="middle">PC2</text>
+</svg>
+</div>
+<div class="side">
+<div class="card cap" aria-live="polite"><h2 id="ct"></h2><p id="cp"></p><p class="d" id="cd"></p></div>
+<div class="card ins" id="ins">Click any dot to see its coordinates and its scores on each component.</div>
+<div class="card bars">
+<div class="bar"><span>PC1</span><div class="track"><div class="fill" id="f1" style="background:var(--a)"></div></div><span id="p1">0%</span></div>
+<div class="bar"><span>PC2</span><div class="track"><div class="fill" id="f2" style="background:var(--b)"></div></div><span id="p2">0%</span></div>
+<div class="lab" style="margin-top:4px">Share of total variance carried by each component</div>
+</div>
+</div>
+</div>
+<div class="card ctl">
+<div class="row">
+<button id="bR" aria-label="Restart"><svg viewBox="0 0 16 16"><path d="M8 2a6 6 0 1 0 6 6h-2a4 4 0 1 1-1.2-2.8L9 7h5V2l-1.8 1.8A6 6 0 0 0 8 2z"/></svg>Restart</button>
+<button id="bB" aria-label="Step back"><svg viewBox="0 0 16 16"><path d="M3 3h2v10H3zM14 3v10L6 8z"/></svg></button>
+<button id="bP" class="on" aria-label="Play or pause"><svg viewBox="0 0 16 16" id="ic"></svg><span id="pt">Play</span></button>
+<button id="bF" aria-label="Step forward"><svg viewBox="0 0 16 16"><path d="M11 3h2v10h-2zM2 3l8 5-8 5z"/></svg></button>
+<div class="sp" role="group" aria-label="Playback speed"><button data-s=".5">0.5×</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button></div>
+</div>
+<div class="row"><input id="sc" type="range" min="0" max="7000" value="0" aria-label="Timeline"><span class="time" id="tm"></span></div>
+<div class="chips" id="chips"></div>
+</div>
+</div>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)},NS="http://www.w3.org/2000/svg";
+function mk(t,a,p){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e}
+var S=40,N=120,seed=11;
+function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647}
+function gs(){return Math.sqrt(-2*Math.log(rnd()+1e-9))*Math.cos(2*Math.PI*rnd())}
+var raw=[];
+for(var i=0;i<N;i++){var hh=170+9*gs(),ww=68+.85*(hh-170)+7*gs();if(i<3)ww+=(i%2?-1:1)*16;raw.push([hh,ww])}
+var mh=0,mw=0;raw.forEach(function(p){mh+=p[0]/N;mw+=p[1]/N});
+var sh=0,sw=0;raw.forEach(function(p){sh+=Math.pow(p[0]-mh,2)/(N-1);sw+=Math.pow(p[1]-mw,2)/(N-1)});sh=Math.sqrt(sh);sw=Math.sqrt(sw);
+var p0=raw.map(function(p){return[(p[0]-135)/10,(p[1]-50)/10]});
+var m0x=(mh-135)/10,m0y=(mw-50)/10;
+var sxx=0,syy=0,sxy=0;
+raw.forEach(function(p){var x=(p[0]-mh)/sh,y=(p[1]-mw)/sw;sxx+=x*x/(N-1);syy+=y*y/(N-1);sxy+=x*y/(N-1)});
+var th=.5*Math.atan2(2*sxy,sxx-syy),h=Math.sqrt((sxx-syy)*(sxx-syy)/4+sxy*sxy),l1=(sxx+syy)/2+h,l2=(sxx+syy)/2-h;
+var v1=[Math.cos(th),Math.sin(th)],v2=[-Math.sin(th),Math.cos(th)];
+var q=raw.map(function(p){var x=(p[0]-mh)/sh,y=(p[1]-mw)/sw;return{x:x,y:y,s1:x*v1[0]+y*v1[1],s2:x*v2[0]+y*v2[1]}});
+var smin=Math.min.apply(0,q.map(function(d){return d.s1})),smax=Math.max.apply(0,q.map(function(d){return d.s1}));
+var pc1=l1/(l1+l2)*100,pc2=100-pc1,f=function(n,d){return n.toFixed(d===undefined?2:d)};
+var gr=$("grid");for(var g=-8;g<=8;g++){mk("line",{"class":"gl",x1:300+g*S,y1:14,x2:300+g*S,y2:406},gr);if(g>-7&&g<7)mk("line",{"class":"gl",x1:20,y1:210+g*S,x2:580,y2:210+g*S},gr)}
+var P=$("pts"),R=$("res"),pts=[],res=[],sel=-1;
+q.forEach(function(d,i){var t=(d.s1-smin)/(smax-smin);
+var r=mk("line",{stroke:"var(--text)","stroke-opacity":".35","stroke-width":1},R);res.push(r);
+var c=mk("circle",{"class":"pt",r:4.5,fill:"hsl("+(205-165*t)+",75%,58%)",tabindex:0,role:"button","aria-label":"Data point "+(i+1)},P);
+c.addEventListener("click",function(){pick(i)});c.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(i)}});pts.push(c)});
+var steps=[
+{t:"Start with real measurements",p:"Each dot is one adult, measured by height in cm and weight in kg. Taller people tend to weigh more, so the two numbers partly repeat each other.",d:"Three unusual people are mixed in, as in real data. PCA looks for a better set of axes."},
+{t:"Center and standardize",p:"Subtract the averages ("+f(mh,0)+" cm, "+f(mw,0)+" kg) and divide by each spread (±"+f(sh,0)+" cm, ±"+f(sw,0)+" kg). Both features now share one unit.",d:"Without this, the feature with bigger numbers would dominate. Both axes now read in z-scores."},
+{t:"Measure the spread",p:"The covariance matrix records how each feature varies and how they vary together. The dashed ellipse shows it: long one way, narrow the other.",d:"Correlation matrix (height and weight, r = "+f(sxy)+"): [["+f(sxx)+", "+f(sxy)+"], ["+f(sxy)+", "+f(syy)+"]]"},
+{t:"Find the principal components",p:"The eigenvectors of that matrix point along the ellipse. The longer arrow, PC1, is the direction of greatest variance. PC2 is perpendicular to it.",d:"Eigenvalues give the variance along each: λ₁ = "+f(l1)+", λ₂ = "+f(l2)+"."},
+{t:"Project onto PC1",p:"Drop every point straight onto the PC1 line. The thin lines show what each point loses by being flattened.",d:"PC1 is the line that keeps the most spread, which also makes those losses as small as possible."},
+{t:"Rotate to the new axes",p:"Turn the view so PC1 runs horizontally. PCA is a rotation: each point’s position along PC1 is its first score.",d:"Same data, new coordinates. Nothing was stretched or invented."},
+{t:"Keep what matters",p:"PC1 carries "+f(pc1,1)+"% of the variance and PC2 only "+f(pc2,1)+"%. PC1 works as an overall body-size score: height and weight push it up about equally.",d:"With more features, you keep the first few components and drop the rest."}];
+var labels=["Data","Standardize","Spread","Components","Project","Rotate","Result"];
+var ch=$("chips");labels.forEach(function(l,i){var b=document.createElement("button");b.className="chip";b.textContent=(i+1)+". "+l;b.onclick=function(){T=i+1;pause();draw()};ch.appendChild(b)});
+var T=0,playing=false,speed=1,last=0,idx=-1;
+function c01(x){return Math.min(1,Math.max(0,x))}function ez(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2}
+function sx(x){return S*x}function sy(y){return -S*y}
+function draw(){
+var e=ez(c01(T-1)),el=ez(c01(T-2)),ar=ez(c01(T-3)),pr=ez(c01(T-4)),ro=ez(c01(T-5)),ba=ez(c01(T-6));
+$("G").setAttribute("transform","translate(300 210) rotate("+(th*180/Math.PI*ro)+")");
+var cx=m0x*(1-e),cy=m0y*(1-e);$("xl").textContent=e>.5?"height (z-score)":"height (cm)";$("yl").textContent=e>.5?"weight (z-score)":"weight (kg)";
+q.forEach(function(d,i){var bx=p0[i][0]+(d.x-p0[i][0])*e,by=p0[i][1]+(d.y-p0[i][1])*e,px=d.s1*v1[0]+cx,py=d.s1*v1[1]+cy,x=bx+(px-bx)*pr,y=by+(py-by)*pr;
+pts[i].setAttribute("cx",sx(x));pts[i].setAttribute("cy",sy(y));
+var r=res[i];r.setAttribute("x1",sx(bx));r.setAttribute("y1",sy(by));r.setAttribute("x2",sx(x));r.setAttribute("y2",sy(y));r.style.opacity=pr>0?1:0});
+var m=$("mu");m.setAttribute("cx",sx(cx));m.setAttribute("cy",sy(cy));
+var E=$("el");E.setAttribute("cx",sx(cx));E.setAttribute("cy",sy(cy));E.setAttribute("rx",sx(2*Math.sqrt(l1))*el);E.setAttribute("ry",sx(2*Math.sqrt(l2))*el);E.setAttribute("transform","rotate("+(-th*180/Math.PI)+" "+sx(cx)+" "+sy(cy)+")");E.style.opacity=el>0?1:0;
+function arrow(id,v,l,k){var L=2.6*Math.sqrt(l)*k,a=$(id);a.setAttribute("x1",sx(cx));a.setAttribute("y1",sy(cy));a.setAttribute("x2",sx(cx+v[0]*L));a.setAttribute("y2",sy(cy+v[1]*L));a.style.opacity=k>0?1:0}
+arrow("v1",v1,l1,ar);arrow("v2",v2,l2,ar);
+var A=$("ax1");A.setAttribute("x1",sx(cx-v1[0]*9));A.setAttribute("y1",sy(cy-v1[1]*9));A.setAttribute("x2",sx(cx+v1[0]*9));A.setAttribute("y2",sy(cy+v1[1]*9));A.style.opacity=ar;
+var ph=-th*ro;
+function lab(id,v,l){var L=2.6*Math.sqrt(l)*ar+.55,wx=cx+v[0]*L,wy=cy+v[1]*L,rx=wx*Math.cos(ph)-wy*Math.sin(ph),ry=wx*Math.sin(ph)+wy*Math.cos(ph),t=$(id);t.setAttribute("x",300+S*rx);t.setAttribute("y",214-S*ry);t.style.opacity=ar}
+lab("l1",v1,l1);lab("l2",v2,l2);
+$("f1").style.width=(pc1*ba)+"%";$("f2").style.width=(pc2*ba)+"%";$("p1").textContent=f(pc1*ba,0)+"%";$("p2").textContent=f(pc2*ba,0)+"%";
+var k=Math.min(6,Math.max(0,Math.ceil(T-1e-9)-1));
+if(k!==idx){idx=k;$("ct").textContent=steps[k].t;$("cp").textContent=steps[k].p;$("cd").textContent=steps[k].d;
+[].forEach.call(ch.children,function(b,j){b.className="chip"+(j===k?" on":"")})}
+$("sc").value=Math.round(T*1000);$("tm").textContent="Step "+(k+1)+" of 7"}
+function pick(i){sel=i;pause();pts.forEach(function(p,j){p.classList.toggle("sel",j===i)});var d=q[i],o=raw[i];
+$("ins").innerHTML="<b>Point "+(i+1)+"</b>: "+f(o[0],0)+" cm, "+f(o[1],0)+" kg. Its PC1 score is <b style=\"color:var(--a)\">"+f(d.s1)+"</b> and its PC2 score is <b style=\"color:var(--b)\">"+f(d.s2)+"</b>. Keeping only PC1 drops "+f(Math.abs(d.s2))+" standard deviations of detail."}
+function pcInfo(n){pause();var v=n===1?v1:v2,l=n===1?l1:l2;$("ins").innerHTML="<b>PC"+n+"</b> direction ("+f(v[0])+", "+f(v[1])+"), variance "+f(l)+" ("+f(n===1?pc1:pc2,1)+"% of total). Each component is a weighted mix of both original features."}
+$("v1").addEventListener("click",function(){pcInfo(1)});$("v2").addEventListener("click",function(){pcInfo(2)});
+function setIc(){$("ic").innerHTML=playing?"<path d='M3 2h4v12H3zM9 2h4v12H9z'/>":"<path d='M3 2l11 6-11 6z'/>";$("pt").textContent=playing?"Pause":"Play"}
+function play(){if(T>=7)T=0;playing=true;last=0;setIc();requestAnimationFrame(tick)}
+function pause(){playing=false;setIc()}
+function tick(ts){if(!playing)return;if(!last)last=ts;T=Math.min(7,T+(ts-last)/1000*speed/3);last=ts;draw();if(T>=7){pause();return}requestAnimationFrame(tick)}
+$("bP").onclick=function(){playing?pause():play()};
+$("bR").onclick=function(){T=0;draw();play()};
+$("bF").onclick=function(){pause();T=Math.min(7,idx+2);draw()};
+$("bB").onclick=function(){pause();T=idx>=1?idx:0;draw()};
+$("sc").oninput=function(){pause();T=this.value/1000;draw()};
+[].forEach.call(document.querySelectorAll("[data-s]"),function(b){b.onclick=function(){speed=+b.dataset.s;[].forEach.call(document.querySelectorAll("[data-s]"),function(x){x.className=x===b?"on":""})}});
+setIc();draw();
+if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches)play();
+})();
+</script>
+</body>
+</html>
